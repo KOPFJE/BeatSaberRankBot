@@ -1,7 +1,7 @@
 {
     "prefix" : "",
     "token" : "",
-    "updateIntervalHours": ,
+    "updateIntervalHours": 5,
     "guildId" : "",
     "country": "",
     "adminchannelID" : "",
@@ -11,6 +11,7 @@
     "twitchClientId": "",
     "twitchClientSecret": "",
     "streamAdvertisementChannelID": "",
+    "communityChannelName": [],
     "deletedRankedMaps" : [13561, 6085, 1455, 2656, 2874],
-    "syncURL" : ""
+    "syncURL": ""
 }

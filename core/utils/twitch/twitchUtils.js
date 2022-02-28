@@ -3,64 +3,84 @@ const fetch = require('node-fetch');
 class TwitchUtils {
     constructor(client, config) {
         this.client = client;
-        this.config = config
+        this.config = config;
+    }
+    
+    async createToken() {
+        const data = {
+            url : "https://id.twitch.tv/oauth2/token",
+            params : {
+                headers: { "Content-Type": "application/json" },
+                body: { 
+                    client_id: this.config.clientID,
+                    client_secret: this.config.twitchSecret,
+                    grant_type: "client_credentials"
+                },
+                method: 'POST'
+            }
+
+        }
+          
+        await fetch(data.url, data.params).then(response => { this.client.twitchAccessToken = response.access_token }).catch( (err) =>  { throw new Error(err) });
     }
 
-    //Top gamba winner ???
-    //Top gamba looser ???
-
-    async streamAdvertisementChannelPost(streamInfo) {
-        const streamInfoObject = { streamName: streamInfo.user_name };
-
-        if (streamInfo?.type === 'live') {
-            const index = this.client.streamsLive.findIndex(streamInfo => streamInfo.streamName === streamInfoObject.streamName)
-
-            if (index === -1) {
-                console.log(streamInfoObject.streamName, " went online")
-                this.client.streamsLive.push(streamInfoObject);
-
-                await this.client.channels.cache.get(this.config.streamAdvertisementChannelID).send(`https://www.twitch.tv/${streamInfoObject.streamName}`);
+    async checkToken() {
+        if(!this.client.twitchAccessToken) {
+            await this.createToken();
+        } else {
+            const data = {
+                url : "https://id.twitch.tv/oauth2/validate",
+                params : {
+                    headers: { "Authorization" : "Bearer " + this.client.twitchAccessToken }
+                }
+            }
+            await fetch(data.url, data.params).then(response => response.json()).catch( (err) => { throw new Error(err) });
+            if(response.expires_in < 259200) {
+                await this.createToken();
             }
         }
-        else if (streamInfo.type === 'offline') {
-            const index = this.client.streamsLive.findIndex(streamInfo => streamInfo.streamName === streamInfoObject.streamName)
-            if (index !== -1) {
-                console.log(streamInfoObject.streamName, " went offline")
-                this.client.streamsLive.splice(index, 1);
+    }
+
+    async findChannelID(channelName) {
+        let channelId;
+        await fetch("https://api.twitch.tv/helix/users", { login : channelName }).then(response => { channelId = response.id }).catch( (err) => { throw new Error(err) });
+        return channelId;
+    }
+
+    async requestSubscriptions() {
+        for(streamname in this.config.communityChannelName) {
+            await this.requestSubscription(streamname);
+        }
+    }
+
+    async requestSubscription(channelName, type) {
+        const channelid = await this.findChannelID(channelName);
+        const secret = channelName + Date.now();
+        const data = {
+            url : "https://api.twitch.tv/helix/eventsub/subscriptions",
+            params : {
+                method: 'POST',
+                headers: {
+                    "Authorization" : "Bearer " + this.client.twitchAccessToken,
+                    "Content-Type" : "application/json",
+                    "Client-ID" : this.config.clientID
+                },
+                body: {
+                    "version" : 1,
+                    "type" : type,
+                    "condition": {
+                        "broadcaster_user_id": channelid
+                    },
+                    "transport" : {
+                        "method" : "webhook",
+                        "callback" : this.config.callbackURL + "/notification",
+                        "secret" : secret
+                    }
+                }
             }
         }
-    }
 
-    async getStreamWithName(loginName) {
-        await this.checkAccessToken();
-        const response = await fetch(`https://api.twitch.tv/helix/streams?user_login=${loginName}`, { headers: { 'Authorization': `Bearer ${this.client.twitchAccessToken}`, 'Client-Id': this.config.twitchClientId } })
-            .then(res => res.json())
-            .catch(err => { throw new Error(err) });
-
-        if (response.data[0]) return response.data[0];
-        else return { user_name: loginName, type: 'offline' }
-    }
-
-    async getAccessToken() {
-        const response = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${this.config.twitchClientId}&client_secret=${this.config.twitchClientSecret}&grant_type=client_credentials`, { method: 'POST' })
-            .then(res => res.json())
-            .catch(err => { throw new Error(err) });
-        this.client.twitchAccessToken = response.access_token;
-    }
-
-    async checkAccessToken() {
-        if (!this.client.twitchAccessToken) {
-            await this.getAccessToken();
-        }
-        else {
-            const response = await fetch(`https://id.twitch.tv/oauth2/validate`, { headers: { 'Authorization': `Bearer ${this.client.twitchAccessToken}` } })
-                .then(res => res.json())
-                .catch(err => { throw new Error(err) });
-            //1 week in seconds
-            if (response.expires_in < 604800) {
-                await this.getAccessToken();
-            }
-        }
+        await fetch(data.url, data.params).then(response => response.json()).catch( (err) => {throw new Error(err) });
     }
 }
 module.exports = TwitchUtils;
