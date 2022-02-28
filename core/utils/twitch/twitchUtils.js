@@ -21,7 +21,9 @@ class TwitchUtils {
 
         }
           
-        await fetch(data.url, data.params).then(response => { this.client.twitchAccessToken = response.access_token }).catch( (err) =>  { throw new Error(err) });
+        this.client.twitchAccessToken = await fetch(data.url, data.params)
+            .then(res => { res.access_token })
+            .catch( (err) =>  { console.log(err) });
     }
 
     async checkToken() {
@@ -34,7 +36,9 @@ class TwitchUtils {
                     headers: { "Authorization" : "Bearer " + this.client.twitchAccessToken }
                 }
             }
-            await fetch(data.url, data.params).then(response => response.json()).catch( (err) => { throw new Error(err) });
+            const response = await fetch(data.url, data.params)
+                .then(response => response.json())
+                .catch( (err) => { console.log(err) });
             if(response.expires_in < 259200) {
                 await this.createToken();
             }
@@ -42,8 +46,9 @@ class TwitchUtils {
     }
 
     async findChannelID(channelName) {
-        let channelId;
-        await fetch("https://api.twitch.tv/helix/users", { login : channelName }).then(response => { channelId = response.id }).catch( (err) => { throw new Error(err) });
+        const channelId = await fetch("https://api.twitch.tv/helix/users", { login : channelName })
+            .then(res => res.id )
+            .catch( (err) => { console.log(err) });
         return channelId;
     }
 
@@ -80,7 +85,9 @@ class TwitchUtils {
             }
         }
 
-        await fetch(data.url, data.params).then(response => response.json()).catch( (err) => {throw new Error(err) });
+        const response = await fetch(data.url, data.params)
+            .then(res => res.json())
+            .catch( (err) => { console.log(err) });
     }
 }
 module.exports = TwitchUtils;
